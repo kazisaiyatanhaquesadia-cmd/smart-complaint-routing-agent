@@ -1,0 +1,114 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart AI Complaint Routing Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+
+        <h1>Smart AI Complaint Routing Agent</h1>
+
+        <p class="subtitle">Submit your complaint below</p>
+
+        <p class="made-by">Made by Sadia and Afrin</p>
+        <a href="/admin/login" class="clear-button">Admin Login</a>
+
+        <form method="POST">
+            <textarea
+                name="complaint"
+                placeholder="Write your complaint in Bangla, English or Banglish..."
+                required
+            ></textarea>
+
+            <button type="submit">Submit Complaint</button>
+            <a href="/" class="clear-button">Clear Complaint</a>
+        </form>
+
+        {% if error %}
+        <div class="result">
+            <h2>Something went wrong</h2>
+            <p>{{ error }}</p>
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <div class="result">
+            <h2>Complaint Result</h2>
+
+            <p><strong>Complaint ID:</strong> {{ result.id }}</p>
+            <p><strong>Original Complaint:</strong> {{ result.complaint }}</p>
+            <p><strong>AI Summary:</strong> {{ result.summary }}</p>
+            <p><strong>Category:</strong> {{ result.category }}</p>
+            <p><strong>Department:</strong> {{ result.department }}</p>
+
+            <p>
+                <strong>Priority:</strong>
+                <span class="priority priority-{{ result.priority|lower }}">
+                    {{ result.priority }}
+                </span>
+            </p>
+
+            <p><strong>Status:</strong> {{ result.status }}</p>
+            <p><strong>Date:</strong> {{ result.date_time }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Complaint History Section -->
+        <div class="result">
+            <h2>Complaint History</h2>
+            <p class="subtitle">All submitted complaints</p>
+
+            {% if complaint_history %}
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Complaint ID</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Category</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Department</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Priority</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Status</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Date</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for complaint in complaint_history %}
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                                {{ complaint.complaint_id }}
+                            </td>
+                            <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                                {{ complaint.category }}
+                            </td>
+                            <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                                {{ complaint.department }}
+                            </td>
+                            <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                                {{ complaint.priority }}
+                            </td>
+                            <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                                {{ complaint.status }}
+                            </td>
+                            <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                                {{ complaint.date_time }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% else %}
+                <p>No complaints submitted yet.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</body>
+</html>

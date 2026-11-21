@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 18px;
+            margin: 25px 0;
+        }
+
+        .stat-card {
+            padding: 22px;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+            border-left: 5px solid;
+        }
+
+        .stat-card h3 {
+            margin: 0;
+            font-size: 15px;
+            color: #555;
+        }
+
+        .stat-card h2 {
+            font-size: 30px;
+            margin: 12px 0 0;
+        }
+
+        .total { border-color: #64748b; }
+        .pending { border-color: #e9a23b; }
+        .progress { border-color: #3b82f6; }
+        .resolved { border-color: #22a06b; }
+
+        table {
+            min-width: 850px;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #f1f5f9;
+        }
+
+        .priority {
+            font-weight: bold;
+        }
+
+        .priority-low { color: #16a34a; }
+        .priority-medium { color: #ca8a04; }
+        .priority-high { color: #ea580c; }
+        .priority-critical { color: #dc2626; }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Admin Dashboard</h1>
+    <p class="subtitle">Manage University Complaints</p>
+
+    <a href="/" class="clear-button">Back to Home</a>
+    <a href="/admin/logout" class="clear-button">Logout</a>
+
+    <!-- Statistics Cards -->
+
+    <div class="stats-container">
+
+        <div class="stat-card total">
+            <h3>Total Complaints</h3>
+            <h2>{{ total_complaints }}</h2>
+        </div>
+
+        <div class="stat-card pending">
+            <h3>Pending</h3>
+            <h2>{{ pending_count }}</h2>
+        </div>
+
+        <div class="stat-card progress">
+            <h3>In Progress</h3>
+            <h2>{{ progress_count }}</h2>
+        </div>
+
+        <div class="stat-card resolved">
+            <h3>Resolved</h3>
+            <h2>{{ resolved_count }}</h2>
+        </div>
+
+    </div>
+
+    <div class="result">
+
+        <h2>Complaint Management</h2>
+
+        <!-- Search -->
+        <input
+            type="text"
+            id="searchInput"
+            placeholder="Search by Complaint ID, Department or Category..."
+            onkeyup="filterComplaints()"
+        >
+
+        <br><br>
+
+        <!-- Priority Filter -->
+        <label>Filter by Priority:</label>
+
+        <select id="priorityFilter" onchange="filterComplaints()">
+            <option value="">All Priorities</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+        </select>
+
+        <br><br>
+
+        <!-- Status Filter -->
+        <label>Filter by Status:</label>
+
+        <select id="statusFilter" onchange="filterComplaints()">
+            <option value="">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+        </select>
+
+        <br><br>
+
+        <div style="overflow-x: auto;">
+
+            <table id="complaintTable"
+                   style="width:100%; border-collapse:collapse; text-align:left;">
+
+                <thead>
+                    <tr>
+                        <th>Complaint ID</th>
+                        <th>Original Complaint</th>
+                        <th>Category</th>
+                        <th>Department</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Update Status</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for complaint in complaints %}
+
+                    <tr>
+
+                        <td>{{ complaint.complaint_id }}</td>
+
+                        <td>{{ complaint.original_complaint }}</td>
+
+                        <td>{{ complaint.category }}</td>
+
+                        <td>{{ complaint.department }}</td>
+
+                        <td class="priority priority-{{ complaint.priority|lower }}">
+                            {{ complaint.priority }}
+                        </td>
+
+                        <td>{{ complaint.status }}</td>
+
+                        <td>
+                            <form method="POST"
+                                  action="{{ url_for('update_status', complaint_id=complaint.complaint_id) }}">
+
+                                <select name="status">
+
+                                    <option value="Pending"
+                                        {% if complaint.status == 'Pending' %}selected{% endif %}>
+                                        Pending
+                                    </option>
+
+                                    <option value="In Progress"
+                                        {% if complaint.status == 'In Progress' %}selected{% endif %}>
+                                        In Progress
+                                    </option>
+
+                                    <option value="Resolved"
+                                        {% if complaint.status == 'Resolved' %}selected{% endif %}>
+                                        Resolved
+                                    </option>
+
+                                </select>
+
+                                <button type="submit">Update</button>
+
+                            </form>
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+            </table>
+
+            <p id="noResults" style="display:none;">
+                No matching complaints found.
+            </p>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+function filterComplaints() {
+
+    let search = document.getElementById("searchInput").value.toLowerCase();
+
+    let priority = document.getElementById("priorityFilter").value.toLowerCase();
+
+    let status = document.getElementById("statusFilter").value.toLowerCase();
+
+    let table = document.getElementById("complaintTable");
+
+    let rows = table.getElementsByTagName("tbody")[0].getElementsByTagName("tr");
+
+    let visibleCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+
+        let rowText = rows[i].innerText.toLowerCase();
+
+        let rowPriority = rows[i].cells[4].innerText.toLowerCase();
+
+        let rowStatus = rows[i].cells[5].innerText.toLowerCase();
+
+        let matchesSearch = rowText.includes(search);
+
+        let matchesPriority = priority === "" || rowPriority === priority;
+
+        let matchesStatus = status === "" || rowStatus === status;
+
+        if (matchesSearch && matchesPriority && matchesStatus) {
+
+            rows[i].style.display = "";
+            visibleCount++;
+
+        } else {
+
+            rows[i].style.display = "none";
+
+        }
+    }
+
+    document.getElementById("noResults").style.display =
+        visibleCount === 0 ? "block" : "none";
+
+}
+
+</script>
+
+</body>
+</html>
+
