@@ -97,7 +97,7 @@ def upload_complaint_image(image_file):
     image_path = f"complaints/{image_name}"
 
     try:
-        response = supabase.storage.from_(
+        supabase.storage.from_(
             "complaint-images"
         ).upload(
             image_path,
@@ -377,7 +377,6 @@ def track_complaint():
 
         else:
             try:
-                # Find complaint
                 response = (
                     supabase.table("complaints")
                     .select("*")
@@ -389,7 +388,6 @@ def track_complaint():
 
                     complaint = response.data[0]
 
-                    # Load notifications
                     notification_response = (
                         supabase.table("notifications")
                         .select("*")
@@ -409,7 +407,6 @@ def track_complaint():
                         reverse=True
                     )
 
-                    # Generate temporary private image URL
                     image_path = complaint.get("image_path")
 
                     print("Tracking Complaint:", complaint_id)
@@ -649,6 +646,59 @@ def update_status(complaint_id):
     except Exception as e:
         print("Status update error:", str(e))
         return "Unable to update complaint status.", 500
+
+    return redirect(url_for("admin_dashboard"))
+
+
+# ----------------------------------
+# Delete Complaint
+# ----------------------------------
+
+@app.route("/delete_complaint/<complaint_id>", methods=["POST"])
+def delete_complaint(complaint_id):
+
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+
+    if supabase is None:
+        return "Supabase connection not available", 500
+
+    try:
+        # Find complaint
+        response = (
+            supabase.table("complaints")
+            .select("complaint_id, image_path")
+            .eq("complaint_id", complaint_id)
+            .execute()
+        )
+
+        if not response.data:
+            return "Complaint not found", 404
+
+        complaint = response.data[0]
+        image_path = complaint.get("image_path")
+
+        # Delete related notifications first
+        supabase.table("notifications").delete().eq(
+            "complaint_id", complaint_id
+        ).execute()
+
+        # Delete attached image
+        if image_path:
+            supabase.storage.from_(
+                "complaint-images"
+            ).remove([image_path])
+
+        # Delete complaint
+        supabase.table("complaints").delete().eq(
+            "complaint_id", complaint_id
+        ).execute()
+
+        print("Complaint deleted:", complaint_id)
+
+    except Exception as e:
+        print("Complaint deletion error:", str(e))
+        return "Unable to delete complaint.", 500
 
     return redirect(url_for("admin_dashboard"))
 
