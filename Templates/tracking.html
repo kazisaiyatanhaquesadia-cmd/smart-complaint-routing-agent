@@ -1,0 +1,306 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Complaint</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .tracking-container {
+            max-width: 650px;
+            margin: 50px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .tracking-container h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .tracking-container > p {
+            text-align: center;
+            color: #666;
+        }
+
+        .tracking-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .tracking-form input {
+            flex: 1;
+            padding: 13px;
+            border: 1px solid #999;
+            border-radius: 7px;
+            min-width: 0;
+            background: white;
+            color: black;
+            font-size: 16px;
+            pointer-events: auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .tracking-form button {
+            padding: 13px 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+        }
+
+        .tracking-result {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 10px;
+        }
+
+        .tracking-result h3 {
+            margin-top: 0;
+        }
+
+        .tracking-result p {
+            text-align: left;
+            margin: 12px 0;
+            color: #333;
+            overflow-wrap: anywhere;
+        }
+
+        .attached-image {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+
+        .attached-image img {
+            display: block;
+            max-width: 100%;
+            max-height: 400px;
+            margin-top: 12px;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+
+        .no-image {
+            color: #777;
+            font-size: 14px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: #fef3c7;
+            color: #92400e;
+            font-weight: bold;
+        }
+
+        .notification-section {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 10px;
+        }
+
+        .notification-section h3 {
+            margin-top: 0;
+            color: #1e293b;
+        }
+
+        .notification-item {
+            padding: 14px;
+            margin-top: 12px;
+            background: white;
+            border-left: 4px solid #2563eb;
+            border-radius: 7px;
+        }
+
+        .notification-item p {
+            margin: 5px 0;
+            color: #333;
+            overflow-wrap: anywhere;
+        }
+
+        .notification-type {
+            font-size: 12px;
+            color: #2563eb;
+            font-weight: bold;
+        }
+
+        .notification-date {
+            font-size: 12px;
+            color: #777;
+        }
+
+        .no-notifications {
+            color: #777;
+            font-size: 14px;
+        }
+
+        .error-message {
+            margin-top: 20px;
+            padding: 12px;
+            color: #b91c1c;
+            background: #fee2e2;
+            border-radius: 7px;
+            text-align: center;
+        }
+
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 25px;
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        @media (max-width: 480px) {
+            .tracking-container {
+                margin: 20px 12px;
+                padding: 20px;
+            }
+
+            .tracking-form {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="tracking-container">
+
+        <h1>Track Your Complaint</h1>
+
+        <p>Enter your Complaint ID to check the current status.</p>
+
+        <form method="POST" action="{{ url_for('track_complaint') }}" class="tracking-form">
+
+            <input
+                type="text"
+                name="complaint_id"
+                placeholder="Enter your Complaint ID"
+                autocomplete="off"
+                required
+            >
+
+            <button type="submit">Track</button>
+
+        </form>
+
+        {% if error %}
+            <div class="error-message">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        {% if complaint %}
+
+            <div class="tracking-result">
+
+                <h3>Complaint Details</h3>
+
+                <p><strong>Complaint ID:</strong> {{ complaint.complaint_id }}</p>
+
+                <p><strong>Category:</strong> {{ complaint.category }}</p>
+
+                <p><strong>Department:</strong> {{ complaint.department }}</p>
+
+                <p><strong>Priority:</strong> {{ complaint.priority }}</p>
+
+                <p><strong>Complaint:</strong> {{ complaint.original_complaint }}</p>
+
+                <p><strong>Submitted:</strong> {{ complaint.date_time }}</p>
+
+                <p>
+                    <strong>Current Status:</strong>
+                    <span class="status">{{ complaint.status }}</span>
+                </p>
+
+                <!-- Attached Complaint Image -->
+
+                <div class="attached-image">
+
+                    <h3>Attached Image</h3>
+
+                    {% if image_url %}
+
+                        <img
+                            src="{{ image_url }}"
+                            alt="Complaint Attached Image"
+                        >
+
+                    {% elif complaint.image_path %}
+
+                        <p class="no-image">
+                            Image could not be loaded. Please try again later.
+                        </p>
+
+                    {% else %}
+
+                        <p class="no-image">
+                            No image was attached to this complaint.
+                        </p>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            <!-- Notification History -->
+
+            <div class="notification-section">
+
+                <h3>🔔 Notification History</h3>
+
+                {% if notifications %}
+
+                    {% for notification in notifications %}
+
+                        <div class="notification-item">
+
+                            <p class="notification-type">
+                                {{ notification.notification_type }}
+                            </p>
+
+                            <p>{{ notification.message }}</p>
+
+                            <p class="notification-date">
+                                {{ notification.created_at }}
+                            </p>
+
+                        </div>
+
+                    {% endfor %}
+
+                {% else %}
+
+                    <p class="no-notifications">
+                        No notifications available yet.
+                    </p>
+
+                {% endif %}
+
+            </div>
+
+        {% endif %}
+
+        <a href="{{ url_for('home') }}" class="back-link">
+            ← Back to Home
+        </a>
+
+    </div>
+
+</body>
+</html>

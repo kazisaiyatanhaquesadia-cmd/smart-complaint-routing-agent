@@ -1,3 +1,4 @@
+
 * {
     margin: 0;
     padding: 0;
@@ -5,20 +6,18 @@
 }
 
 body {
-    font-family: 'Times New Roman', Times, serif, sans-serif;
+    font-family: 'Times New Roman', Times, serif;
     background: #f5eee6;
     color: #4b3621;
     min-height: 100vh;
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
     padding: 30px;
 }
 
+/* Home page container */
 .container {
     width: 100%;
     max-width: 700px;
+    margin: 0 auto;
     background: #fffaf5;
     padding: 40px;
     border-radius: 25px;
@@ -43,7 +42,7 @@ h1 {
     margin-bottom: 30px;
     color: #795548;
     font-size: 15px;
-    font-style:normal;
+    font-style: normal;
 }
 
 textarea {
@@ -122,6 +121,7 @@ button:hover {
     background: #c8b8a8;
     color: #4b3621;
 }
+
 .clear-button {
     display: block;
     width: 100%;
@@ -139,4 +139,103 @@ button:hover {
 
 .clear-button:hover {
     background: #c5aa91;
+}
+
+/* Tracking page */
+.tracking-container {
+    width: 100%;
+    max-width: 650px;
+    margin: 30px auto;
+    padding: 30px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.tracking-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 25px;
+}
+
+.tracking-form input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px;
+    border: 1px solid #999;
+    border-radius: 7px;
+    background: white;
+    color: black;
+    font-size: 16px;
+    pointer-events: auto;
+}
+
+.tracking-form button {
+    width: auto;
+    margin-top: 0;
+    padding: 13px 20px;
+    background: #2563eb;
+}
+
+.tracking-form button:hover {
+    background: #1d4ed8;
+}
+
+.tracking-result {
+    margin-top: 25px;
+    padding: 20px;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+
+.tracking-result p {
+    text-align: left;
+    margin: 12px 0;
+    color: #333;
+    overflow-wrap: anywhere;
+}
+
+.status {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: #fef3c7;
+    color: #92400e;
+    font-weight: bold;
+}
+
+.error-message {
+    margin-top: 20px;
+    padding: 12px;
+    color: #b91c1c;
+    background: #fee2e2;
+    border-radius: 7px;
+    text-align: center;
+}
+
+.back-link {
+    display: block;
+    text-align: center;
+    margin-top: 25px;
+    color: #2563eb;
+    text-decoration: none;
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 12px;
+    }
+
+    .container,
+    .tracking-container {
+        padding: 20px;
+    }
+
+    .tracking-form {
+        flex-direction: column;
+    }
+
+    .tracking-form button {
+        width: 100%;
+    }
 }
