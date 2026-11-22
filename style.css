@@ -1,0 +1,241 @@
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Times New Roman', Times, serif;
+    background: #f5eee6;
+    color: #4b3621;
+    min-height: 100vh;
+    padding: 30px;
+}
+
+/* Home page container */
+.container {
+    width: 100%;
+    max-width: 700px;
+    margin: 0 auto;
+    background: #fffaf5;
+    padding: 40px;
+    border-radius: 25px;
+    box-shadow: 0 10px 30px rgba(75, 54, 33, 0.15);
+}
+
+h1 {
+    text-align: center;
+    color: #5a3e2b;
+    margin-bottom: 10px;
+    font-size: 32px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #8b6f57;
+    margin-bottom: 8px;
+}
+
+.made-by {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #795548;
+    font-size: 15px;
+    font-style: normal;
+}
+
+textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 18px;
+    border: 2px solid #d8c2ad;
+    border-radius: 15px;
+    background: #faf3ec;
+    color: #4b3621;
+    font-size: 16px;
+    resize: vertical;
+    outline: none;
+}
+
+textarea:focus {
+    border-color: #9a7355;
+    box-shadow: 0 0 0 3px rgba(154, 115, 85, 0.12);
+}
+
+button {
+    width: 100%;
+    padding: 15px;
+    margin-top: 15px;
+    border: none;
+    border-radius: 14px;
+    background: #795548;
+    color: white;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover {
+    background: #5d4037;
+    transform: translateY(-2px);
+}
+
+.result {
+    margin-top: 30px;
+    padding: 25px;
+    background: #f1e4d7;
+    border-radius: 18px;
+    border-left: 6px solid #795548;
+}
+
+.result h2 {
+    color: #5a3e2b;
+    margin-bottom: 15px;
+}
+
+.result p {
+    margin: 10px 0;
+    font-size: 16px;
+}
+
+.priority {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: bold;
+}
+
+.priority-high {
+    background: #d7a48a;
+    color: #5a2e1f;
+}
+
+.priority-medium {
+    background: #dbc49b;
+    color: #5a4525;
+}
+
+.priority-low {
+    background: #c8b8a8;
+    color: #4b3621;
+}
+
+.clear-button {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    margin-top: 10px;
+    border-radius: 14px;
+    background: #d8c2ad;
+    color: #4b3621;
+    text-align: center;
+    text-decoration: none;
+    font-size: 17px;
+    font-weight: bold;
+    box-sizing: border-box;
+}
+
+.clear-button:hover {
+    background: #c5aa91;
+}
+
+/* Tracking page */
+.tracking-container {
+    width: 100%;
+    max-width: 650px;
+    margin: 30px auto;
+    padding: 30px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.tracking-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 25px;
+}
+
+.tracking-form input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px;
+    border: 1px solid #999;
+    border-radius: 7px;
+    background: white;
+    color: black;
+    font-size: 16px;
+    pointer-events: auto;
+}
+
+.tracking-form button {
+    width: auto;
+    margin-top: 0;
+    padding: 13px 20px;
+    background: #2563eb;
+}
+
+.tracking-form button:hover {
+    background: #1d4ed8;
+}
+
+.tracking-result {
+    margin-top: 25px;
+    padding: 20px;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+
+.tracking-result p {
+    text-align: left;
+    margin: 12px 0;
+    color: #333;
+    overflow-wrap: anywhere;
+}
+
+.status {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: #fef3c7;
+    color: #92400e;
+    font-weight: bold;
+}
+
+.error-message {
+    margin-top: 20px;
+    padding: 12px;
+    color: #b91c1c;
+    background: #fee2e2;
+    border-radius: 7px;
+    text-align: center;
+}
+
+.back-link {
+    display: block;
+    text-align: center;
+    margin-top: 25px;
+    color: #2563eb;
+    text-decoration: none;
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 12px;
+    }
+
+    .container,
+    .tracking-container {
+        padding: 20px;
+    }
+
+    .tracking-form {
+        flex-direction: column;
+    }
+
+    .tracking-form button {
+        width: 100%;
+    }
+}
