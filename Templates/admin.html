@@ -6,13 +6,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Admin Dashboard</title>
+    <title>Office Admin Dashboard</title>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
+        .office-info {
+            background: white;
+            padding: 18px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+        }
+
         .stats-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -81,12 +88,13 @@
         }
 
         table {
-            min-width: 1050px;
+            min-width: 1450px;
         }
 
         th, td {
             padding: 12px;
             border-bottom: 1px solid #ddd;
+            vertical-align: top;
         }
 
         th {
@@ -137,6 +145,17 @@
             background-color: #b91c1c;
         }
 
+        .student-info {
+            min-width: 130px;
+        }
+
+        .complaint-text {
+            min-width: 200px;
+            max-width: 300px;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
         @media (max-width: 480px) {
             .chart-box {
                 height: 230px;
@@ -155,7 +174,26 @@
 
     <h1>Admin Dashboard</h1>
 
-    <p class="subtitle">Manage University Complaints</p>
+    <p class="subtitle">Office-wise Complaint Management System</p>
+
+    <div class="office-info">
+        <h2>Office Information</h2>
+
+        <p>
+            <strong>Assigned Office:</strong>
+            {{ office_name }}
+        </p>
+
+        <p>
+            <strong>Office Code:</strong>
+            {{ office_code }}
+        </p>
+
+        <p>
+            <strong>Access Type:</strong>
+            Office Administrator
+        </p>
+    </div>
 
     <a href="/" class="clear-button">Back to Home</a>
     <a href="/admin/logout" class="clear-button">Logout</a>
@@ -188,14 +226,14 @@
     </div>
 
 
-    <!-- Advanced Analytics Dashboard -->
+    <!-- Analytics Dashboard -->
 
     <div class="result analytics-section">
 
-        <h2>Advanced Analytics Dashboard</h2>
+        <h2>Office Analytics Dashboard</h2>
 
         <p class="subtitle">
-            Complaint analysis based on real database records
+            Complaint analysis based on this office's database records
         </p>
 
         <div class="charts-container">
@@ -215,7 +253,7 @@
             </div>
 
             <div class="chart-card">
-                <h3>Department-wise Complaints</h3>
+                <h3>Office-wise Complaints</h3>
                 <div class="chart-box">
                     <canvas id="departmentChart"></canvas>
                 </div>
@@ -239,13 +277,17 @@
 
         <h2>Complaint Management</h2>
 
+        <p class="subtitle">
+            View and manage complaints assigned to your office
+        </p>
+
         <input
             type="text"
             id="searchInput"
             class="filter-control"
-            placeholder="Search by Complaint ID, Department or Category..."
+            placeholder="Search by Complaint ID, Student ID, Name or Category..."
             onkeyup="filterComplaints()"
-            style="width:100%;"
+            style="width:100%; box-sizing:border-box;"
         >
 
         <br><br>
@@ -281,7 +323,7 @@
 
         <br><br>
 
-        <div style="overflow-x: auto;">
+        <div style="overflow-x:auto;">
 
             <table
                 id="complaintTable"
@@ -291,10 +333,12 @@
                 <thead>
                     <tr>
                         <th>Complaint ID</th>
+                        <th>Student Name</th>
+                        <th>Student ID</th>
                         <th>Original Complaint</th>
                         <th>Attached Image</th>
                         <th>Category</th>
-                        <th>Department</th>
+                        <th>Assigned Office</th>
                         <th>Priority</th>
                         <th>Status</th>
                         <th>Update Status</th>
@@ -308,12 +352,25 @@
 
                     <tr>
 
-                        <td>{{ complaint.complaint_id }}</td>
+                        <td>
+                            {{ complaint.complaint_id }}
+                        </td>
 
-                        <td>{{ complaint.original_complaint }}</td>
+                        <td class="student-info">
+                            {{ complaint.student_name or 'N/A' }}
+                        </td>
+
+                        <td class="student-info">
+                            {{ complaint.student_id or 'N/A' }}
+                        </td>
+
+                        <td class="complaint-text">
+                            {{ complaint.original_complaint }}
+                        </td>
 
                         <td>
                             {% if complaint.image_url %}
+
                                 <a
                                     href="{{ complaint.image_url }}"
                                     target="_blank"
@@ -325,7 +382,9 @@
                                         class="complaint-image"
                                     >
                                 </a>
+
                                 <br>
+
                                 <a
                                     href="{{ complaint.image_url }}"
                                     target="_blank"
@@ -334,22 +393,33 @@
                                 >
                                     View Image
                                 </a>
+
                             {% elif complaint.image_path %}
+
                                 Image unavailable
+
                             {% else %}
+
                                 No Image
+
                             {% endif %}
                         </td>
 
-                        <td>{{ complaint.category }}</td>
+                        <td>
+                            {{ complaint.category }}
+                        </td>
 
-                        <td>{{ complaint.department }}</td>
+                        <td>
+                            {{ complaint.office or complaint.department }}
+                        </td>
 
                         <td class="priority priority-{{ complaint.priority|lower }}">
                             {{ complaint.priority }}
                         </td>
 
-                        <td>{{ complaint.status }}</td>
+                        <td>
+                            {{ complaint.status }}
+                        </td>
 
                         <td>
 
@@ -377,13 +447,13 @@
 
                                 </select>
 
-                                <button type="submit">Update</button>
+                                <button type="submit">
+                                    Update
+                                </button>
 
                             </form>
 
                         </td>
-
-                        <!-- Delete Complaint -->
 
                         <td>
 
@@ -415,6 +485,10 @@
             <p id="noResults" style="display:none;">
                 No matching complaints found.
             </p>
+
+            {% if not complaints %}
+                <p>No complaints assigned to this office yet.</p>
+            {% endif %}
 
         </div>
 
@@ -487,7 +561,7 @@
     });
 
 
-    // Department-wise Chart
+    // Office-wise Chart
 
     new Chart(document.getElementById("departmentChart"), {
 
@@ -581,9 +655,11 @@
 
             let rowText = rows[i].innerText.toLowerCase();
 
-            let rowPriority = rows[i].cells[5].innerText.toLowerCase();
+            // Priority is column 7
+            let rowPriority = rows[i].cells[7].innerText.toLowerCase();
 
-            let rowStatus = rows[i].cells[6].innerText.toLowerCase();
+            // Status is column 8
+            let rowStatus = rows[i].cells[8].innerText.toLowerCase();
 
             let matchesSearch = rowText.includes(search);
 

@@ -1,10 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart AI Complaint Routing Agent</title>
+
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 
@@ -17,7 +17,13 @@
 
         <p class="made-by">Made by Sadia and Afrin</p>
 
-        <a href="/admin/login" class="clear-button">Admin Login</a>
+        <a href="{{ url_for('admin_login') }}" class="clear-button">
+            Office Admin Login
+        </a>
+
+        <a href="{{ url_for('master_admin_login') }}" class="clear-button">
+            Master Admin Login
+        </a>
 
         <a href="{{ url_for('track_complaint') }}" class="clear-button">
             Track Complaint
@@ -25,11 +31,48 @@
 
         <form method="POST" enctype="multipart/form-data">
 
-            <textarea
-                name="complaint"
-                placeholder="Write your complaint in Bangla, English or Banglish..."
-                required
-            ></textarea>
+            <div style="margin: 15px 0; text-align: left;">
+                <label for="student_name">
+                    <strong>Student Name</strong>
+                </label>
+
+                <input
+                    type="text"
+                    id="student_name"
+                    name="student_name"
+                    placeholder="Enter your full name"
+                    required
+                    style="display: block; width: 100%; box-sizing: border-box; margin-top: 8px; padding: 12px;"
+                >
+            </div>
+
+            <div style="margin: 15px 0; text-align: left;">
+                <label for="student_id">
+                    <strong>Student ID</strong>
+                </label>
+
+                <input
+                    type="text"
+                    id="student_id"
+                    name="student_id"
+                    placeholder="Enter your student ID"
+                    required
+                    style="display: block; width: 100%; box-sizing: border-box; margin-top: 8px; padding: 12px;"
+                >
+            </div>
+
+            <div style="margin: 15px 0; text-align: left;">
+                <label for="complaint">
+                    <strong>Complaint Description</strong>
+                </label>
+
+                <textarea
+                    id="complaint"
+                    name="complaint"
+                    placeholder="Write your complaint in Bangla, English or Banglish..."
+                    required
+                ></textarea>
+            </div>
 
             <div style="margin: 15px 0; text-align: left;">
                 <label for="image">
@@ -44,11 +87,15 @@
                     style="display: block; margin-top: 10px;"
                 >
 
-                <small>Allowed: JPG, JPEG, PNG, WEBP | Maximum size: 5 MB</small>
+                <small>
+                    Allowed: JPG, JPEG, PNG, WEBP | Maximum size: 5 MB
+                </small>
             </div>
 
             <button type="submit">Submit Complaint</button>
+
             <a href="/" class="clear-button">Clear Complaint</a>
+
         </form>
 
         {% if error %}
@@ -60,13 +107,16 @@
 
         {% if result %}
         <div class="result">
-            <h2>Complaint Result</h2>
+
+            <h2>Complaint Submitted Successfully!</h2>
 
             <p><strong>Complaint ID:</strong> {{ result.id }}</p>
+            <p><strong>Student Name:</strong> {{ result.student_name }}</p>
+            <p><strong>Student ID:</strong> {{ result.student_id }}</p>
             <p><strong>Original Complaint:</strong> {{ result.complaint }}</p>
             <p><strong>AI Summary:</strong> {{ result.summary }}</p>
             <p><strong>Category:</strong> {{ result.category }}</p>
-            <p><strong>Department:</strong> {{ result.department }}</p>
+            <p><strong>Assigned Office:</strong> {{ result.department }}</p>
 
             <p>
                 <strong>Priority:</strong>
@@ -81,22 +131,28 @@
             {% if result.image_attached %}
                 <p><strong>Image:</strong> Successfully attached</p>
             {% endif %}
+
         </div>
         {% endif %}
 
-        <!-- Complaint History Section -->
         <div class="result">
+
             <h2>Complaint History</h2>
+
             <p class="subtitle">All submitted complaints</p>
 
             {% if complaint_history %}
+
             <div style="overflow-x: auto;">
+
                 <table style="width: 100%; border-collapse: collapse; text-align: left;">
+
                     <thead>
                         <tr>
                             <th style="padding: 10px; border-bottom: 1px solid #ccc;">Complaint ID</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Student ID</th>
                             <th style="padding: 10px; border-bottom: 1px solid #ccc;">Category</th>
-                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Department</th>
+                            <th style="padding: 10px; border-bottom: 1px solid #ccc;">Office</th>
                             <th style="padding: 10px; border-bottom: 1px solid #ccc;">Priority</th>
                             <th style="padding: 10px; border-bottom: 1px solid #ccc;">Status</th>
                             <th style="padding: 10px; border-bottom: 1px solid #ccc;">Date</th>
@@ -109,30 +165,42 @@
                             <td style="padding: 10px; border-bottom: 1px solid #ddd;">
                                 {{ complaint.complaint_id }}
                             </td>
+
+                            <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                                {{ complaint.student_id or 'N/A' }}
+                            </td>
+
                             <td style="padding: 10px; border-bottom: 1px solid #ddd;">
                                 {{ complaint.category }}
                             </td>
+
                             <td style="padding: 10px; border-bottom: 1px solid #ddd;">
-                                {{ complaint.department }}
+                                {{ complaint.office or complaint.department }}
                             </td>
+
                             <td style="padding: 10px; border-bottom: 1px solid #ddd;">
                                 {{ complaint.priority }}
                             </td>
+
                             <td style="padding: 10px; border-bottom: 1px solid #ddd;">
                                 {{ complaint.status }}
                             </td>
+
                             <td style="padding: 10px; border-bottom: 1px solid #ddd;">
                                 {{ complaint.date_time }}
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
+
                 </table>
+
             </div>
 
             {% else %}
                 <p>No complaints submitted yet.</p>
             {% endif %}
+
         </div>
 
     </div>
