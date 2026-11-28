@@ -1,0 +1,278 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Admin Management</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f4f6fa;
+            font-family: Arial, sans-serif;
+        }
+
+        .management-box {
+            max-width: 750px;
+            margin: 30px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+            position: relative;
+        }
+
+        /* Logout Cross Button */
+        .close-button {
+            position: fixed;
+            top: 20px;
+            right: 25px;
+            z-index: 99999;
+            width: 45px;
+            height: 45px;
+            background: #d93025;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            font-weight: bold;
+            text-decoration: none;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+            cursor: pointer;
+        }
+
+        .close-button:hover {
+            background: #a51d16;
+            transform: scale(1.08);
+        }
+
+        h1 {
+            color: #174ea6;
+            margin-top: 10px;
+        }
+
+        h2 {
+            color: #333;
+            margin-top: 25px;
+        }
+
+        .management-box input,
+        .management-box select {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0 18px;
+            border: 1px solid #ccc;
+            border-radius: 7px;
+            box-sizing: border-box;
+        }
+
+        .management-box button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            background: #174ea6;
+            color: white;
+            font-size: 15px;
+        }
+
+        .management-box button:hover {
+            background: #0d3478;
+        }
+
+        .success-message {
+            color: green;
+            margin-bottom: 15px;
+        }
+
+        .error-message {
+            color: red;
+            margin-bottom: 15px;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .admin-table th,
+        .admin-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .admin-table th {
+            background: #f1f4f9;
+        }
+
+        .home-link,
+        .office-login-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: #174ea6;
+            text-decoration: none;
+        }
+
+        .home-link:hover,
+        .office-login-link:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .management-box {
+                padding: 20px 15px;
+                margin-top: 55px;
+            }
+
+            .close-button {
+                top: 10px;
+                right: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- Master Admin Logout Cross -->
+<a href="{{ url_for('master_admin_logout') }}"
+   class="close-button"
+   title="Logout"
+   onclick="return confirm('Are you sure you want to logout from Master Admin?');">
+    &times;
+</a>
+
+<div class="management-box">
+
+    <h1>Office Admin Management</h1>
+
+    <p>Create separate administrator accounts for university offices.</p>
+
+    <a href="{{ url_for('home') }}" class="home-link">
+        ← Back to Home Page
+    </a>
+
+    <hr>
+
+    <h2>Create Office Admin</h2>
+
+    {% if message %}
+        <p class="success-message">{{ message }}</p>
+    {% endif %}
+
+    {% if error %}
+        <p class="error-message">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST">
+
+        <label>Select Office</label>
+
+        <select name="office_code" required>
+            <option value="">Choose an Office</option>
+
+            {% for code, name in offices.items() %}
+                <option value="{{ code }}">{{ name }} ({{ code }})</option>
+            {% endfor %}
+        </select>
+
+        <label>Admin Username</label>
+
+        <input
+            type="text"
+            name="username"
+            placeholder="Enter username"
+            required
+        >
+
+        <label>Password</label>
+
+        <input
+            type="password"
+            name="password"
+            placeholder="Minimum 8 characters"
+            minlength="8"
+            required
+        >
+
+        <label>Confirm Password</label>
+
+        <input
+            type="password"
+            name="confirm_password"
+            placeholder="Confirm password"
+            minlength="8"
+            required
+        >
+
+        <button type="submit">Create Admin Account</button>
+
+    </form>
+
+    <hr>
+
+    <h2>Existing Office Admins</h2>
+
+    <div style="overflow-x: auto;">
+
+        <table class="admin-table">
+
+            <thead>
+                <tr>
+                    <th>Office</th>
+                    <th>Username</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for admin in admins %}
+                <tr>
+                    <td>
+                        {{ offices.get(admin.office_code, admin.office_code) }}
+                    </td>
+
+                    <td>{{ admin.username }}</td>
+
+                    <td>
+                        {% if admin.is_active %}
+                            Active
+                        {% else %}
+                            Inactive
+                        {% endif %}
+                    </td>
+                </tr>
+
+                {% else %}
+                <tr>
+                    <td colspan="3">
+                        No office admin accounts created yet.
+                    </td>
+                </tr>
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <br>
+
+    <a href="{{ url_for('admin_login') }}" class="office-login-link">
+        Go to Office Admin Login
+    </a>
+
+</div>
+
+</body>
+</html>

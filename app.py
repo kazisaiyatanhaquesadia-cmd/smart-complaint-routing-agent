@@ -2,17 +2,26 @@
 import os
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from collections import Counter
 
-from flask import Flask, render_template, request, redirect, session, url_for
+from flask import (
+    Flask, render_template, request, redirect,
+    session, url_for
+)
 from dotenv import load_dotenv
 from groq import Groq
 from supabase import create_client
+from werkzeug.security import (
+    check_password_hash,
+    generate_password_hash
+)
+import hmac
 
-# ----------------------------------
-# Environment Setup
-# ----------------------------------
+
+# ==========================================
+# 1. ENVIRONMENT SETUP
+# ==========================================
 
 load_dotenv()
 
@@ -22,6 +31,19 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY")
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+
+OFFICES = {
+    "RO": "Registrar Office",
+    "HO": "Hall",
+    "LO": "Library",
+    "AO": "Admission",
+    "PO": "Proctor",
+    "DO": "Department",
+    "ASW": "ASW",
+    "ACC": "Accounts",
+    "EO": "Exam Office",
+    "ICT": "ICT Wing"
+}
 
 groq_key = os.getenv("GROQ_API_KEY")
 groq_client = Groq(api_key=groq_key) if groq_key else None
@@ -35,9 +57,197 @@ if supabase_url and supabase_key:
     supabase = create_client(supabase_url, supabase_key)
 
 
-# ----------------------------------
-# Image Upload Helper
-# ----------------------------------
+# ==========================================
+# 2. PRIORITY CLASSIFICATION
+# ==========================================
+
+def determine_priority(complaint, ai_priority="Medium"):
+
+    text = complaint.lower()
+
+    critical_keywords = [
+        "fire", "আগুন", "আগুন লাগ",
+        "electric shock", "বিদ্যুৎস্পৃষ্ট",
+        "sparking", "short circuit",
+        "life threatening", "suicide",
+        "serious injury", "emergency",
+        "বৈদ্যুতিক আগুন", "জীবনের ঝুঁকি"
+    ]
+
+    high_keywords = [
+        "urgent", "জরুরি",
+        "water leakage", "পানি লিক",
+        "no electricity", "বিদ্যুৎ নেই",
+        "toilet blocked", "severe damage",
+        "security threat", "নিরাপত্তা সমস্যা"
+    ]
+
+    low_keywords = [
+        "suggestion", "পরামর্শ",
+        "minor issue", "ছোট সমস্যা",
+        "decoration", "সাজসজ্জা"
+    ]
+
+    if any(word in text for word in critical_keywords):
+        return "Critical"
+
+    if any(word in text for word in high_keywords):
+        return "High"
+
+    if any(word in text for word in low_keywords):
+        return "Low"
+
+    valid_priorities = ["Low", "Medium", "High", "Critical"]
+
+    if ai_priority in valid_priorities:
+        return ai_priority
+
+    return "Medium"
+
+
+# ==========================================
+# 3. AI COMPLAINT ANALYSIS AND OFFICE ROUTING
+# ==========================================
+
+def analyze_complaint(complaint):
+
+    if groq_client is None:
+        raise ValueError("Groq API key not configured.")
+
+    office_list = "\n".join(
+        f"{code}: {name}"
+        for code, name in OFFICES.items()
+    )
+
+    prompt = f"""
+You are a university Smart AI Complaint Routing Agent.
+
+Understand complaints written in:
+- Bangla
+- English
+- Banglish
+- Mixed languages
+
+Understand informal spelling and preserve the original meaning.
+Do not ask the student to translate.
+
+Available university offices:
+{office_list}
+
+Analyze this complaint:
+{complaint}
+
+Select exactly ONE most appropriate office from the available list.
+
+Office selection guidance:
+- Registrar Office: certificates, official documents,
+  student records and registrar services.
+- Hall: dormitory rooms, hall facilities, dining,
+  water, electricity and hall-related problems.
+- Library: books, library access, library facilities
+  and library services.
+- Admission: admission applications, admission fees
+  and admission-related problems.
+- Proctor: security, discipline, harassment,
+  misconduct and safety complaints.
+- Department: classroom, teachers, department facilities,
+  academic department-related problems.
+- ASW: student welfare and student support services.
+- Accounts: tuition fees, payments, receipts,
+  scholarships and financial account problems.
+- Exam Office: exam schedules, results, registration,
+  marksheets and examination issues.
+- ICT Wing: internet, Wi-Fi, computer labs,
+  software, network and technical problems.
+
+Return ONLY valid JSON:
+{{
+    "category": "short complaint category",
+    "office_code": "one exact code from the available list",
+    "priority": "Low, Medium, High, or Critical",
+    "summary": "short English summary"
+}}
+
+Do not invent an office code.
+Choose based on the actual complaint.
+"""
+
+    response = groq_client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.2,
+        max_completion_tokens=1024,
+        response_format={"type": "json_object"}
+    )
+
+    ai_text = response.choices[0].message.content
+    analysis = json.loads(ai_text)
+
+    office_code = str(
+        analysis.get("office_code", "")
+    ).strip().upper()
+
+    if office_code not in OFFICES:
+        raise ValueError(
+            "AI returned an invalid office. Please try again."
+        )
+
+    ai_priority = analysis.get("priority", "Medium")
+
+    final_priority = determine_priority(
+        complaint,
+        ai_priority
+    )
+
+    return {
+        "category": analysis.get(
+            "category", "General Complaint"
+        ),
+        "office_code": office_code,
+        "department": OFFICES[office_code],
+        "priority": final_priority,
+        "summary": analysis.get("summary", "")
+    }
+
+
+# ==========================================
+# 4. COMPLAINT ID GENERATION
+# ==========================================
+
+def generate_complaint_id(office_code):
+
+    if office_code not in OFFICES:
+        raise ValueError("Invalid office code.")
+
+    if supabase is None:
+        raise ValueError("Supabase connection not available.")
+
+    today = date.today()
+
+    response = supabase.rpc(
+        "get_next_complaint_serial",
+        {
+            "p_office_code": office_code,
+            "p_complaint_date": today.isoformat()
+        }
+    ).execute()
+
+    serial_number = int(response.data)
+
+    date_part = today.strftime("%Y%m%d")
+
+    complaint_id = (
+        f"CMP-{office_code}-{date_part}-{serial_number:03d}"
+    )
+
+    return complaint_id, serial_number
+
+
+# ==========================================
+# 5. IMAGE UPLOAD HELPER
+# ==========================================
 
 def upload_complaint_image(image_file):
 
@@ -62,8 +272,6 @@ def upload_complaint_image(image_file):
         "png": "image/png",
         "webp": "image/webp"
     }
-
-    content_type = allowed_mime_types[extension]
 
     image_bytes = image_file.read()
 
@@ -103,12 +311,10 @@ def upload_complaint_image(image_file):
             image_path,
             image_bytes,
             file_options={
-                "content-type": content_type,
+                "content-type": allowed_mime_types[extension],
                 "upsert": "false"
             }
         )
-
-        print("Image uploaded successfully:", image_path)
 
         return image_path
 
@@ -117,25 +323,19 @@ def upload_complaint_image(image_file):
         raise ValueError("Image upload failed. Please try again.")
 
 
-# ----------------------------------
-# Generate Private Image URL
-# ----------------------------------
+# ==========================================
+# 6. PRIVATE IMAGE URL
+# ==========================================
 
 def get_complaint_image_url(image_path):
 
     if not image_path or supabase is None:
-        print("No image path found.")
         return None
 
     try:
         response = supabase.storage.from_(
             "complaint-images"
-        ).create_signed_url(
-            image_path,
-            3600
-        )
-
-        print("Signed URL Response:", response)
+        ).create_signed_url(image_path, 3600)
 
         signed_url = (
             response.get("signedURL")
@@ -150,12 +350,6 @@ def get_complaint_image_url(image_path):
                 + signed_url
             )
 
-        print("Image Path:", image_path)
-        print(
-            "Generated Image URL:",
-            "URL CREATED" if signed_url else "URL NOT CREATED"
-        )
-
         return signed_url
 
     except Exception as e:
@@ -163,11 +357,15 @@ def get_complaint_image_url(image_path):
         return None
 
 
-# ----------------------------------
-# Notification System
-# ----------------------------------
+# ==========================================
+# 7. NOTIFICATION SYSTEM
+# ==========================================
 
-def create_notification(complaint_id, message, notification_type):
+def create_notification(
+    complaint_id,
+    message,
+    notification_type
+):
 
     if supabase is None:
         return False
@@ -179,13 +377,9 @@ def create_notification(complaint_id, message, notification_type):
             "notification_type": notification_type
         }
 
-        response = (
-            supabase.table("notifications")
-            .insert(notification_data)
-            .execute()
-        )
-
-        print("Notification saved:", response.data)
+        supabase.table("notifications").insert(
+            notification_data
+        ).execute()
 
         return True
 
@@ -194,139 +388,119 @@ def create_notification(complaint_id, message, notification_type):
         return False
 
 
-# ----------------------------------
-# AI Complaint Analysis
-# ----------------------------------
+# ==========================================
+# 8. ADMIN AUTHENTICATION HELPER
+# ==========================================
 
-def analyze_complaint(complaint):
+def admin_is_logged_in():
 
-    prompt = f"""
-You are a Smart AI Complaint Routing Agent for a university.
-
-Understand complaints written in:
-1. Bangla (বাংলা)
-2. English
-3. Banglish (Romanized Bangla)
-4. Mixed languages.
-
-Understand informal spelling and preserve the original meaning.
-Do not ask users to translate.
-
-Analyze this complaint:
-{complaint}
-
-Return ONLY valid JSON with these fields:
-{{
-    "category": "short complaint category",
-    "department": "responsible university department",
-    "priority": "Low, Medium, High, or Critical",
-    "summary": "short English summary"
-}}
-
-Choose the department based on the actual complaint.
-Do not guess if the meaning is unclear.
-"""
-
-    response = groq_client.chat.completions.create(
-        model="openai/gpt-oss-120b",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.3,
-        max_completion_tokens=1024,
-        response_format={"type": "json_object"}
+    return (
+        session.get("admin_logged_in") is True
+        and session.get("admin_office_code") in OFFICES
     )
 
-    ai_text = response.choices[0].message.content
 
-    return json.loads(ai_text)
-
-
-# ----------------------------------
-# Home Page and Complaint Submission
-# ----------------------------------
+# ==========================================
+# 9. HOME PAGE AND COMPLAINT SUBMISSION
+# ==========================================
 
 @app.route("/", methods=["GET", "POST"])
 def home():
 
     result = None
     error = None
+    complaint_history = []
 
     if request.method == "POST":
 
-        complaint = request.form.get("complaint", "").strip()
+        student_name = request.form.get(
+            "student_name", ""
+        ).strip()
+
+        student_id = request.form.get(
+            "student_id", ""
+        ).strip()
+
+        complaint = request.form.get(
+            "complaint", ""
+        ).strip()
+
         image_file = request.files.get("image")
 
-        if complaint:
+        if not student_name or not student_id or not complaint:
+            error = "Please provide your name, student ID and complaint."
 
+        else:
             try:
                 if groq_client is None:
-                    raise ValueError(
-                        "Groq API key not found. Check .env file."
-                    )
+                    raise ValueError("Groq API key not found.")
 
                 if supabase is None:
-                    raise ValueError(
-                        "Supabase credentials not found. Check .env file."
-                    )
+                    raise ValueError("Supabase connection not available.")
 
-                # Analyze complaint
                 analysis = analyze_complaint(complaint)
 
-                # Upload optional image
+                office_code = analysis["office_code"]
+                office_name = OFFICES[office_code]
+
+                complaint_id, serial_number = generate_complaint_id(
+                    office_code
+                )
+
                 image_path = None
 
                 if image_file and image_file.filename:
                     image_path = upload_complaint_image(image_file)
 
-                # Prepare complaint data
+                now = datetime.now()
+
                 complaint_data = {
-                    "complaint_id": f"CMP-{uuid.uuid4().hex[:8].upper()}",
+                    "complaint_id": complaint_id,
+                    "student_name": student_name,
+                    "student_id": student_id,
                     "original_complaint": complaint,
-                    "category": analysis.get(
-                        "category", "General Complaint"
-                    ),
-                    "department": analysis.get(
-                        "department", "Admin Department"
-                    ),
-                    "priority": analysis.get("priority", "Medium"),
-                    "summary": analysis.get("summary", ""),
+                    "category": analysis["category"],
+                    "department": office_name,
+                    "office": office_name,
+                    "office_code": office_code,
+                    "serial_number": serial_number,
+                    "priority": analysis["priority"],
+                    "summary": analysis["summary"],
                     "status": "Pending",
-                    "date_time": datetime.now().strftime(
+                    "date_time": now.strftime(
                         "%d-%m-%Y %I:%M %p"
                     ),
                     "image_path": image_path
                 }
 
-                # Save complaint in Supabase
                 supabase.table("complaints").insert(
                     complaint_data
                 ).execute()
 
-                # Create submission notification
                 create_notification(
-                    complaint_data["complaint_id"],
+                    complaint_id,
                     "Your complaint has been submitted successfully.",
                     "Complaint Submitted"
                 )
 
                 result = {
-                    "id": complaint_data["complaint_id"],
+                    "id": complaint_id,
                     "complaint": complaint,
-                    "category": complaint_data["category"],
-                    "department": complaint_data["department"],
-                    "priority": complaint_data["priority"],
-                    "summary": complaint_data["summary"],
-                    "status": complaint_data["status"],
+                    "student_name": student_name,
+                    "student_id": student_id,
+                    "category": analysis["category"],
+                    "department": office_name,
+                    "office": office_name,
+                    "priority": analysis["priority"],
+                    "summary": analysis["summary"],
+                    "status": "Pending",
                     "date_time": complaint_data["date_time"],
                     "image_attached": bool(image_path)
                 }
 
             except Exception as e:
+                print("Complaint submission error:", str(e))
                 error = f"Complaint processing failed: {str(e)}"
-
-    # Load complaint history
-    complaint_history = []
 
     try:
         if supabase:
@@ -340,20 +514,23 @@ def home():
             complaint_history = response.data or []
 
     except Exception as e:
+        print("Complaint history error:", str(e))
+
         if not error:
-            error = f"Database loading failed: {str(e)}"
+            error = "Unable to load complaint history."
 
     return render_template(
         "index.html",
         result=result,
         error=error,
-        complaint_history=complaint_history
+        complaint_history=complaint_history,
+        offices=OFFICES
     )
 
 
-# ----------------------------------
-# Complaint Tracking and Notifications
-# ----------------------------------
+# ==========================================
+# 10. COMPLAINT TRACKING
+# ==========================================
 
 @app.route("/track", methods=["GET", "POST"])
 def track_complaint():
@@ -391,35 +568,20 @@ def track_complaint():
                     notification_response = (
                         supabase.table("notifications")
                         .select("*")
+                        .eq("complaint_id", complaint_id)
                         .execute()
                     )
 
-                    all_notifications = notification_response.data or []
-
-                    notifications = [
-                        n for n in all_notifications
-                        if str(n.get("complaint_id", "")).strip().upper()
-                        == complaint_id
-                    ]
+                    notifications = notification_response.data or []
 
                     notifications.sort(
                         key=lambda n: n.get("created_at") or "",
                         reverse=True
                     )
 
-                    image_path = complaint.get("image_path")
-
-                    print("Tracking Complaint:", complaint_id)
-                    print("Image Path from Database:", image_path)
-
-                    image_url = get_complaint_image_url(image_path)
-
-                    print(
-                        "Image URL Status:",
-                        "Available" if image_url else "Not Available"
+                    image_url = get_complaint_image_url(
+                        complaint.get("image_path")
                     )
-
-                    print("Notifications Found:", len(notifications))
 
                 else:
                     error = "No complaint found with this ID."
@@ -437,9 +599,172 @@ def track_complaint():
     )
 
 
-# ----------------------------------
-# Admin Login
-# ----------------------------------
+# ==========================================
+# 11. MASTER ADMIN AUTHENTICATION
+# ==========================================
+
+def master_admin_is_logged_in():
+    return session.get("master_admin_logged_in") is True
+
+
+@app.route("/admin/manage/login", methods=["GET", "POST"])
+def master_admin_login():
+
+    error = None
+
+    if request.method == "POST":
+
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        master_username = "admin"
+        master_password = "admin123"
+
+        username_valid = (
+            bool(master_username)
+            and hmac.compare_digest(username, master_username)
+        )
+
+        password_valid = (
+            bool(master_password)
+            and hmac.compare_digest(password, master_password)
+        )
+
+        if username_valid and password_valid:
+            session.clear()
+            session["master_admin_logged_in"] = True
+            session["master_admin_username"] = username
+
+            return redirect(url_for("admin_management"))
+
+        error = "Invalid Master Admin username or password."
+
+    return render_template(
+        "master_admin_login.html",
+        error=error
+    )
+
+
+# ==========================================
+# 12. OFFICE ADMIN MANAGEMENT
+# ==========================================
+
+@app.route("/admin/manage", methods=["GET", "POST"])
+def admin_management():
+
+    if not master_admin_is_logged_in():
+        return redirect(url_for("master_admin_login"))
+
+    if supabase is None:
+        return "Database connection not available.", 500
+
+    message = None
+    error = None
+
+    if request.method == "POST":
+
+        office_code = request.form.get("office_code", "").strip().upper()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if office_code not in OFFICES:
+            error = "Please select a valid office."
+
+        elif not username:
+            error = "Username is required."
+
+        elif len(password) < 8:
+            error = "Password must be at least 8 characters."
+
+        elif password != confirm_password:
+            error = "Passwords do not match."
+
+        else:
+            try:
+                existing_office = (
+                    supabase.table("office_admins")
+                    .select("id")
+                    .eq("office_code", office_code)
+                    .execute()
+                )
+
+                if existing_office.data:
+                    error = (
+                        f"{OFFICES[office_code]} already has an admin account."
+                    )
+
+                else:
+                    existing_username = (
+                        supabase.table("office_admins")
+                        .select("id")
+                        .eq("username", username)
+                        .execute()
+                    )
+
+                    if existing_username.data:
+                        error = "This username is already taken."
+
+                    else:
+                        admin_data = {
+                            "username": username,
+                            "password_hash": generate_password_hash(password),
+                            "office_code": office_code,
+                            "is_active": True
+                        }
+
+                        supabase.table("office_admins").insert(
+                            admin_data
+                        ).execute()
+
+                        message = (
+                            f"Admin account created for {OFFICES[office_code]}."
+                        )
+
+            except Exception as e:
+                print("Master Admin account creation error:", str(e))
+                error = "Unable to create account. Please try again."
+
+    admins = []
+
+    try:
+        response = (
+            supabase.table("office_admins")
+            .select("id, username, office_code, is_active, created_at")
+            .order("id")
+            .execute()
+        )
+
+        admins = response.data or []
+
+    except Exception as e:
+        print("Admin list error:", str(e))
+        error = error or "Unable to load admin accounts."
+
+    return render_template(
+        "admin_management.html",
+        offices=OFFICES,
+        admins=admins,
+        message=message,
+        error=error
+    )
+
+
+# ==========================================
+# 13. MASTER ADMIN LOGOUT
+# ==========================================
+
+@app.route("/admin/manage/logout")
+def master_admin_logout():
+
+    session.clear()
+
+    return redirect(url_for("home"))
+
+
+# ==========================================
+# 14. OFFICE-WISE ADMIN LOGIN
+# ==========================================
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
@@ -448,159 +773,190 @@ def admin_login():
 
     if request.method == "POST":
 
-        username = request.form.get("username")
-        password = request.form.get("password")
+        username = request.form.get(
+            "username", ""
+        ).strip()
 
-        if (
-            username == os.getenv("ADMIN_USERNAME")
-            and password == os.getenv("ADMIN_PASSWORD")
-        ):
+        password = request.form.get(
+            "password", ""
+        )
 
-            session["admin_logged_in"] = True
+        try:
+            if supabase is None:
+                raise ValueError("Database connection not available.")
 
-            return redirect(url_for("admin_dashboard"))
+            response = (
+                supabase.table("office_admins")
+                .select("*")
+                .eq("username", username)
+                .eq("is_active", True)
+                .execute()
+            )
 
-        error = "Invalid username or password!"
+            if response.data:
+
+                admin = response.data[0]
+
+                password_valid = check_password_hash(
+                    admin["password_hash"],
+                    password
+                )
+
+                office_code = admin["office_code"]
+
+                if password_valid and office_code in OFFICES:
+
+                    session.clear()
+                    session["admin_logged_in"] = True
+                    session["admin_username"] = username
+                    session["admin_office_code"] = office_code
+                    session["admin_office"] = OFFICES[office_code]
+
+                    return redirect(url_for("admin_dashboard"))
+
+            error = "Invalid username or password."
+
+        except Exception as e:
+            print("Admin login error:", str(e))
+            error = "Unable to login. Please try again."
 
     return render_template("login.html", error=error)
 
 
-# ----------------------------------
-# Admin Dashboard with Analytics and Images
-# ----------------------------------
+# ==========================================
+# 15. OFFICE-WISE ADMIN DASHBOARD
+# ==========================================
 
 @app.route("/admin")
 def admin_dashboard():
 
-    if not session.get("admin_logged_in"):
+    if not admin_is_logged_in():
         return redirect(url_for("admin_login"))
 
     if supabase is None:
         return "Supabase connection not available", 500
 
-    response = (
-        supabase.table("complaints")
-        .select("*")
-        .order("id", desc=True)
-        .execute()
-    )
+    office_code = session["admin_office_code"]
+    office_name = OFFICES[office_code]
 
-    complaints = response.data or []
+    try:
+        response = (
+            supabase.table("complaints")
+            .select("*")
+            .eq("office_code", office_code)
+            .order("id", desc=True)
+            .execute()
+        )
 
-    # Generate temporary private image URL for each complaint
-    for complaint in complaints:
+        complaints = response.data or []
 
-        image_path = complaint.get("image_path")
+        for complaint in complaints:
+            image_path = complaint.get("image_path")
 
-        if image_path:
-            complaint["image_url"] = get_complaint_image_url(
-                image_path
-            )
-        else:
-            complaint["image_url"] = None
-
-    # Statistics
-    total_complaints = len(complaints)
-
-    pending_count = sum(
-        1 for c in complaints
-        if c.get("status") == "Pending"
-    )
-
-    progress_count = sum(
-        1 for c in complaints
-        if c.get("status") == "In Progress"
-    )
-
-    resolved_count = sum(
-        1 for c in complaints
-        if c.get("status") == "Resolved"
-    )
-
-    # Category Analytics
-    category_counts = Counter(
-        c.get("category") or "Unknown"
-        for c in complaints
-    )
-
-    category_labels = list(category_counts.keys())
-    category_values = list(category_counts.values())
-
-    # Priority Analytics
-    priority_counts = Counter(
-        c.get("priority") or "Unknown"
-        for c in complaints
-    )
-
-    priority_labels = list(priority_counts.keys())
-    priority_values = list(priority_counts.values())
-
-    # Department Analytics
-    department_counts = Counter(
-        c.get("department") or "Unknown"
-        for c in complaints
-    )
-
-    department_labels = list(department_counts.keys())
-    department_values = list(department_counts.values())
-
-    # Monthly Analytics
-    monthly_counts = Counter()
-
-    for complaint in complaints:
-
-        date_value = complaint.get("date_time", "")
-
-        try:
-            complaint_date = datetime.strptime(
-                date_value, "%d-%m-%Y %I:%M %p"
+            complaint["image_url"] = (
+                get_complaint_image_url(image_path)
+                if image_path else None
             )
 
-            month_key = complaint_date.strftime("%Y-%m")
-            monthly_counts[month_key] += 1
+        total_complaints = len(complaints)
 
-        except (ValueError, TypeError):
-            continue
+        pending_count = sum(
+            1 for c in complaints
+            if c.get("status") == "Pending"
+        )
 
-    sorted_months = sorted(monthly_counts.keys())
+        progress_count = sum(
+            1 for c in complaints
+            if c.get("status") == "In Progress"
+        )
 
-    monthly_labels = [
-        datetime.strptime(month, "%Y-%m").strftime("%b %Y")
-        for month in sorted_months
-    ]
+        resolved_count = sum(
+            1 for c in complaints
+            if c.get("status") == "Resolved"
+        )
 
-    monthly_values = [
-        monthly_counts[month]
-        for month in sorted_months
-    ]
+        category_counts = Counter(
+            c.get("category") or "Unknown"
+            for c in complaints
+        )
 
-    return render_template(
-        "admin.html",
-        complaints=complaints,
-        total_complaints=total_complaints,
-        pending_count=pending_count,
-        progress_count=progress_count,
-        resolved_count=resolved_count,
-        category_labels=category_labels,
-        category_values=category_values,
-        priority_labels=priority_labels,
-        priority_values=priority_values,
-        department_labels=department_labels,
-        department_values=department_values,
-        monthly_labels=monthly_labels,
-        monthly_values=monthly_values
-    )
+        category_labels = list(category_counts.keys())
+        category_values = list(category_counts.values())
+
+        priority_counts = Counter(
+            c.get("priority") or "Unknown"
+            for c in complaints
+        )
+
+        priority_labels = list(priority_counts.keys())
+        priority_values = list(priority_counts.values())
+
+        monthly_counts = Counter()
+
+        for complaint in complaints:
+
+            date_value = complaint.get("date_time", "")
+
+            try:
+                complaint_date = datetime.strptime(
+                    date_value, "%d-%m-%Y %I:%M %p"
+                )
+
+                month_key = complaint_date.strftime("%Y-%m")
+                monthly_counts[month_key] += 1
+
+            except (ValueError, TypeError):
+                continue
+
+        sorted_months = sorted(monthly_counts.keys())
+
+        monthly_labels = [
+            datetime.strptime(month, "%Y-%m").strftime("%b %Y")
+            for month in sorted_months
+        ]
+
+        monthly_values = [
+            monthly_counts[month]
+            for month in sorted_months
+        ]
+
+        return render_template(
+            "admin.html",
+            complaints=complaints,
+            total_complaints=total_complaints,
+            pending_count=pending_count,
+            progress_count=progress_count,
+            resolved_count=resolved_count,
+            category_labels=category_labels,
+            category_values=category_values,
+            priority_labels=priority_labels,
+            priority_values=priority_values,
+            department_labels=[office_name],
+            department_values=[total_complaints],
+            monthly_labels=monthly_labels,
+            monthly_values=monthly_values,
+            office_name=office_name,
+            office_code=office_code,
+            admin_username=session.get("admin_username")
+        )
+
+    except Exception as e:
+        print("Dashboard error:", str(e))
+        return "Unable to load dashboard.", 500
 
 
-# ----------------------------------
-# Update Complaint Status
-# ----------------------------------
+# ==========================================
+# 16. UPDATE COMPLAINT STATUS
+# ==========================================
 
 @app.route("/update_status/<complaint_id>", methods=["POST"])
 def update_status(complaint_id):
 
-    if not session.get("admin_logged_in"):
+    if not admin_is_logged_in():
         return redirect(url_for("admin_login"))
+
+    if supabase is None:
+        return "Supabase connection not available", 500
 
     new_status = request.form.get("status")
 
@@ -613,19 +969,19 @@ def update_status(complaint_id):
     if new_status not in allowed_statuses:
         return "Invalid status", 400
 
-    if supabase is None:
-        return "Supabase connection not available", 500
+    office_code = session["admin_office_code"]
 
     try:
         response = (
             supabase.table("complaints")
             .select("status")
             .eq("complaint_id", complaint_id)
+            .eq("office_code", office_code)
             .execute()
         )
 
         if not response.data:
-            return "Complaint not found", 404
+            return "Complaint not found in your office.", 404
 
         old_status = response.data[0].get("status")
 
@@ -633,10 +989,11 @@ def update_status(complaint_id):
             {"status": new_status}
         ).eq(
             "complaint_id", complaint_id
+        ).eq(
+            "office_code", office_code
         ).execute()
 
         if old_status != new_status:
-
             create_notification(
                 complaint_id,
                 f"Your complaint status has been updated to {new_status}.",
@@ -650,48 +1007,49 @@ def update_status(complaint_id):
     return redirect(url_for("admin_dashboard"))
 
 
-# ----------------------------------
-# Delete Complaint
-# ----------------------------------
+# ==========================================
+# 17. DELETE COMPLAINT
+# ==========================================
 
 @app.route("/delete_complaint/<complaint_id>", methods=["POST"])
 def delete_complaint(complaint_id):
 
-    if not session.get("admin_logged_in"):
+    if not admin_is_logged_in():
         return redirect(url_for("admin_login"))
 
     if supabase is None:
         return "Supabase connection not available", 500
 
+    office_code = session["admin_office_code"]
+
     try:
-        # Find complaint
         response = (
             supabase.table("complaints")
             .select("complaint_id, image_path")
             .eq("complaint_id", complaint_id)
+            .eq("office_code", office_code)
             .execute()
         )
 
         if not response.data:
-            return "Complaint not found", 404
+            return "Complaint not found in your office.", 404
 
         complaint = response.data[0]
         image_path = complaint.get("image_path")
 
-        # Delete related notifications first
         supabase.table("notifications").delete().eq(
             "complaint_id", complaint_id
         ).execute()
 
-        # Delete attached image
         if image_path:
             supabase.storage.from_(
                 "complaint-images"
             ).remove([image_path])
 
-        # Delete complaint
         supabase.table("complaints").delete().eq(
             "complaint_id", complaint_id
+        ).eq(
+            "office_code", office_code
         ).execute()
 
         print("Complaint deleted:", complaint_id)
@@ -703,30 +1061,34 @@ def delete_complaint(complaint_id):
     return redirect(url_for("admin_dashboard"))
 
 
-# ----------------------------------
-# Admin Logout
-# ----------------------------------
+# ==========================================
+# 18. OFFICE ADMIN LOGOUT
+# ==========================================
 
 @app.route("/admin/logout")
 def admin_logout():
 
-    session.pop("admin_logged_in", None)
+    session.clear()
 
     return redirect(url_for("admin_login"))
 
 
-# ----------------------------------
-# File Too Large Error
-# ----------------------------------
+# ==========================================
+# 19. FILE TOO LARGE ERROR
+# ==========================================
 
 @app.errorhandler(413)
 def file_too_large(error):
-    return "Image is too large. Maximum allowed size is 5 MB.", 413
+
+    return (
+        "Image is too large. Maximum allowed size is 5 MB.",
+        413
+    )
 
 
-# ----------------------------------
-# Run Flask Application
-# ----------------------------------
+# ==========================================
+# 20. RUN FLASK APPLICATION
+# ==========================================
 
 if __name__ == "__main__":
     app.run(debug=True)
